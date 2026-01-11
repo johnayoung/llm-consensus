@@ -27,7 +27,7 @@ var (
 )
 
 const (
-	defaultJudge   = "gpt-4o"
+	defaultJudge   = "gpt-5.2-2025-12-11"
 	defaultTimeout = 30 * time.Second
 )
 
@@ -43,51 +43,23 @@ const (
 // Known models mapped to their providers.
 // Add new models here as they become available.
 var knownModels = map[string]ProviderType{
-	// OpenAI - GPT-5 series
-	"gpt-5.2":     ProviderOpenAI,
-	"gpt-5.2-pro": ProviderOpenAI,
-	"gpt-5":       ProviderOpenAI,
-	"gpt-5-mini":  ProviderOpenAI,
-	"gpt-5-nano":  ProviderOpenAI,
-	// OpenAI - GPT-4.1 series
-	"gpt-4.1":      ProviderOpenAI,
-	"gpt-4.1-mini": ProviderOpenAI,
-	"gpt-4.1-nano": ProviderOpenAI,
-	// OpenAI - Reasoning (o-series)
-	"o3":      ProviderOpenAI,
-	"o3-pro":  ProviderOpenAI,
-	"o4-mini": ProviderOpenAI,
-	// OpenAI - Previous
-	"gpt-4o":      ProviderOpenAI,
-	"gpt-4o-mini": ProviderOpenAI,
+	// OpenAI
+	"gpt-5.2-2025-12-11": ProviderOpenAI,
 
-	// Anthropic - Claude 4 series
-	"claude-4-opus":   ProviderAnthropic,
-	"claude-4-sonnet": ProviderAnthropic,
-	// Anthropic - Claude 3.5 series
-	"claude-3.5-sonnet": ProviderAnthropic,
-	"claude-3.5-haiku":  ProviderAnthropic,
-	// Anthropic - Claude 3 series
-	"claude-3-opus":   ProviderAnthropic,
-	"claude-3-sonnet": ProviderAnthropic,
-	"claude-3-haiku":  ProviderAnthropic,
+	// Anthropic (use full dated model names)
+	"claude-sonnet-4-5": ProviderAnthropic,
+	"claude-haiku-4-5":  ProviderAnthropic,
+	"claude-opus-4-5":   ProviderAnthropic,
 
-	// Google - Gemini 3 series
-	"gemini-3-pro":   ProviderGoogle,
-	"gemini-3-flash": ProviderGoogle,
-	// Google - Gemini 2.5 series
-	"gemini-2.5-pro":        ProviderGoogle,
-	"gemini-2.5-flash":      ProviderGoogle,
-	"gemini-2.5-flash-lite": ProviderGoogle,
-	// Google - Gemini 2.0 series
-	"gemini-2.0-flash":      ProviderGoogle,
-	"gemini-2.0-flash-lite": ProviderGoogle,
+	// Google
+	"gemini-3-pro-preview": ProviderGoogle,
 }
 
 type config struct {
 	models  []string
 	judge   string
 	file    string
+	output  string
 	timeout time.Duration
 	prompt  string
 }
@@ -146,7 +118,20 @@ func run() error {
 		FailedModels: result.FailedModels,
 	}
 
-	enc := json.NewEncoder(os.Stdout)
+	// Write to file or stdout
+	var w *os.File
+	if cfg.output != "" {
+		var err error
+		w, err = os.Create(cfg.output)
+		if err != nil {
+			return fmt.Errorf("creating output file: %w", err)
+		}
+		defer w.Close()
+	} else {
+		w = os.Stdout
+	}
+
+	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(out)
 }
@@ -167,6 +152,7 @@ func parseFlags() (*config, error) {
 		modelsStr   string
 		judge       string
 		file        string
+		outputPath  string
 		timeout     int
 		showVersion bool
 	)
@@ -174,6 +160,7 @@ func parseFlags() (*config, error) {
 	flag.StringVar(&modelsStr, "models", "", "Comma-separated list of models to query (required)")
 	flag.StringVar(&judge, "judge", defaultJudge, "Model to use for consensus synthesis")
 	flag.StringVar(&file, "file", "", "Read prompt from file")
+	flag.StringVar(&outputPath, "output", "", "Write JSON output to file (default: stdout)")
 	flag.IntVar(&timeout, "timeout", 30, "Per-model timeout in seconds")
 	flag.BoolVar(&showVersion, "version", false, "Print version information and exit")
 	flag.Parse()
@@ -198,6 +185,7 @@ func parseFlags() (*config, error) {
 		models:  models,
 		judge:   judge,
 		file:    file,
+		output:  outputPath,
 		timeout: time.Duration(timeout) * time.Second,
 	}
 
