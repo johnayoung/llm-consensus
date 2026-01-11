@@ -1,0 +1,145 @@
+package provider
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"time"
+)
+
+// Anthropic Claude Models
+// Full list: https://docs.anthropic.com/en/docs/about-claude/models
+//
+// Claude 4 (Latest):
+//   - claude-sonnet-4-20250514    : Best balance of speed and capability
+//   - claude-opus-4-20250514      : Most capable, best for complex tasks
+//
+// Claude 3.5:
+//   - claude-3-5-sonnet-20241022  : Previous generation sonnet
+//   - claude-3-5-haiku-20241022   : Fast and cost-effective
+//
+// Claude 3:
+//   - claude-3-opus-20240229      : Previous flagship
+//   - claude-3-sonnet-20240229    : Balanced performance
+//   - claude-3-haiku-20240307     : Fastest, cheapest
+
+// Anthropic implements Provider for Anthropic's Claude API.
+type Anthropic struct {
+	apiKey     string
+	baseURL    string
+	httpClient *http.Client
+}
+
+// AnthropicOption configures an Anthropic provider.
+type AnthropicOption func(*Anthropic)
+
+// WithAnthropicBaseURL sets a custom base URL.
+func WithAnthropicBaseURL(url string) AnthropicOption {
+	return func(a *Anthropic) { a.baseURL = url }
+}
+
+// WithAnthropicHTTPClient sets a custom HTTP client.
+func WithAnthropicHTTPClient(c *http.Client) AnthropicOption {
+	return func(a *Anthropic) { a.httpClient = c }
+}
+
+// NewAnthropic creates an Anthropic provider.
+// Reads API key from ANTHROPIC_API_KEY environment variable.
+func NewAnthropic(opts ...AnthropicOption) (*Anthropic, error) {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	if apiKey == "" {
+		return nil, errors.New("ANTHROPIC_API_KEY environment variable required")
+	}
+
+	a := &Anthropic{
+		apiKey:     apiKey,
+		baseURL:    "https://api.anthropic.com/v1",
+		httpClient: &http.Client{Timeout: 60 * time.Second},
+	}
+
+	for _, opt := range opts {
+		opt(a)
+	}
+
+	return a, nil
+}
+
+// Query sends a prompt to a Claude model and returns the response.
+func (a *Anthropic) Query(ctx context.Context, req Request) (Response, error) {
+	start := time.Now()
+
+	payload := anthropicRequest{
+		Model:     req.Model,
+		MaxTokens: 4096,
+		Messages: []anthropicMessage{
+			{Role: "user", Content: req.Prompt},
+		},
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return Response{}, fmt.Errorf("marshaling request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, a.baseURL+"/messages", bytes.NewReader(body))
+	if err != nil {
+		return Response{}, fmt.Errorf("creating request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-api-key", a.apiKey)
+	httpReq.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := a.httpClient.Do(httpReq)
+	if err != nil {
+		return Response{}, fmt.Errorf("sending request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return Response{}, fmt.Errorf("reading response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return Response{}, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var anthropicResp anthropicResponse
+	if err := json.Unmarshal(respBody, &anthropicResp); err != nil {
+		return Response{}, fmt.Errorf("parsing response: %w", err)
+	}
+
+	if len(anthropicResp.Content) == 0 {
+		return Response{}, errors.New("no content in response")
+	}
+
+	return Response{
+		Model:    req.Model,
+		Content:  anthropicResp.Content[0].Text,
+		Provider: "anthropic",
+		Latency:  time.Since(start),
+	}, nil
+}
+
+type anthropicRequest struct {
+	Model     string             `json:"model"`
+	MaxTokens int                `json:"max_tokens"`
+	Messages  []anthropicMessage `json:"messages"`
+}
+
+type anthropicMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type anthropicResponse struct {
+	Content []struct {
+		Text string `json:"text"`
+	} `json:"content"`
+}
