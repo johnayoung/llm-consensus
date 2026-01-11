@@ -15,18 +15,26 @@ import (
 // OpenAI Models
 // Full list: https://platform.openai.com/docs/models
 //
-// Flagship:
-//   - gpt-4o           : Most capable, multimodal (text + vision)
-//   - gpt-4o-mini      : Fast and cost-effective for simpler tasks
+// Frontier (GPT-5):
+//   - gpt-5.2              : Best model for coding and agentic tasks
+//   - gpt-5.2-pro          : Smarter, more precise responses
+//   - gpt-5                : Previous intelligent reasoning model
+//   - gpt-5-mini           : Faster, cost-efficient for well-defined tasks
+//   - gpt-5-nano           : Fastest, most cost-efficient GPT-5
 //
-// Reasoning:
-//   - o1               : Advanced reasoning, best for complex problems
-//   - o1-mini          : Faster reasoning model
-//   - o3-mini          : Latest compact reasoning model
+// GPT-4.1:
+//   - gpt-4.1              : Smartest non-reasoning model
+//   - gpt-4.1-mini         : Smaller, faster version of GPT-4.1
+//   - gpt-4.1-nano         : Smallest GPT-4.1 variant
 //
-// Legacy:
-//   - gpt-4-turbo      : Previous flagship with vision
-//   - gpt-3.5-turbo    : Fast, cheap, good for simple tasks
+// Reasoning (o-series):
+//   - o3                   : Reasoning model for complex tasks
+//   - o3-pro               : More compute for better responses
+//   - o4-mini              : Fast, cost-efficient reasoning
+//
+// Previous:
+//   - gpt-4o               : Fast, intelligent, flexible GPT model
+//   - gpt-4o-mini          : Fast, affordable for focused tasks
 
 // OpenAI implements Provider for OpenAI's API.
 type OpenAI struct {

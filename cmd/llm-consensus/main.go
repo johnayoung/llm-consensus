@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -18,10 +19,70 @@ import (
 	"github.com/johnayoung/llm-consensus/internal/runner"
 )
 
+// Version information set via ldflags at build time.
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 const (
 	defaultJudge   = "gpt-4o"
 	defaultTimeout = 30 * time.Second
 )
+
+// ProviderType identifies which LLM provider to use.
+type ProviderType int
+
+const (
+	ProviderOpenAI ProviderType = iota
+	ProviderAnthropic
+	ProviderGoogle
+)
+
+// Known models mapped to their providers.
+// Add new models here as they become available.
+var knownModels = map[string]ProviderType{
+	// OpenAI - GPT-5 series
+	"gpt-5.2":     ProviderOpenAI,
+	"gpt-5.2-pro": ProviderOpenAI,
+	"gpt-5":       ProviderOpenAI,
+	"gpt-5-mini":  ProviderOpenAI,
+	"gpt-5-nano":  ProviderOpenAI,
+	// OpenAI - GPT-4.1 series
+	"gpt-4.1":      ProviderOpenAI,
+	"gpt-4.1-mini": ProviderOpenAI,
+	"gpt-4.1-nano": ProviderOpenAI,
+	// OpenAI - Reasoning (o-series)
+	"o3":      ProviderOpenAI,
+	"o3-pro":  ProviderOpenAI,
+	"o4-mini": ProviderOpenAI,
+	// OpenAI - Previous
+	"gpt-4o":      ProviderOpenAI,
+	"gpt-4o-mini": ProviderOpenAI,
+
+	// Anthropic - Claude 4 series
+	"claude-4-opus":   ProviderAnthropic,
+	"claude-4-sonnet": ProviderAnthropic,
+	// Anthropic - Claude 3.5 series
+	"claude-3.5-sonnet": ProviderAnthropic,
+	"claude-3.5-haiku":  ProviderAnthropic,
+	// Anthropic - Claude 3 series
+	"claude-3-opus":   ProviderAnthropic,
+	"claude-3-sonnet": ProviderAnthropic,
+	"claude-3-haiku":  ProviderAnthropic,
+
+	// Google - Gemini 3 series
+	"gemini-3-pro":   ProviderGoogle,
+	"gemini-3-flash": ProviderGoogle,
+	// Google - Gemini 2.5 series
+	"gemini-2.5-pro":        ProviderGoogle,
+	"gemini-2.5-flash":      ProviderGoogle,
+	"gemini-2.5-flash-lite": ProviderGoogle,
+	// Google - Gemini 2.0 series
+	"gemini-2.0-flash":      ProviderGoogle,
+	"gemini-2.0-flash-lite": ProviderGoogle,
+}
 
 type config struct {
 	models  []string
@@ -90,19 +151,39 @@ func run() error {
 	return enc.Encode(out)
 }
 
+// getVersion returns the version string, using build info as fallback.
+func getVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "dev"
+}
+
 func parseFlags() (*config, error) {
 	var (
-		modelsStr string
-		judge     string
-		file      string
-		timeout   int
+		modelsStr   string
+		judge       string
+		file        string
+		timeout     int
+		showVersion bool
 	)
 
 	flag.StringVar(&modelsStr, "models", "", "Comma-separated list of models to query (required)")
 	flag.StringVar(&judge, "judge", defaultJudge, "Model to use for consensus synthesis")
 	flag.StringVar(&file, "file", "", "Read prompt from file")
 	flag.IntVar(&timeout, "timeout", 30, "Per-model timeout in seconds")
+	flag.BoolVar(&showVersion, "version", false, "Print version information and exit")
 	flag.Parse()
+
+	if showVersion {
+		fmt.Printf("llm-consensus %s\n", getVersion())
+		fmt.Printf("  commit: %s\n", commit)
+		fmt.Printf("  built:  %s\n", date)
+		os.Exit(0)
+	}
 
 	if modelsStr == "" {
 		return nil, fmt.Errorf("--models flag is required")
@@ -185,15 +266,24 @@ func initRegistry(models []string, judge string) (*provider.Registry, error) {
 }
 
 func createProvider(model string) (provider.Provider, error) {
-	// Map model to provider type
-	switch {
-	case strings.HasPrefix(model, "gpt-") || strings.HasPrefix(model, "o1") || strings.HasPrefix(model, "o3"):
+	providerType, ok := knownModels[model]
+	if !ok {
+		// List available models for helpful error message
+		var available []string
+		for m := range knownModels {
+			available = append(available, m)
+		}
+		return nil, fmt.Errorf("unknown model %q; available models: %v", model, available)
+	}
+
+	switch providerType {
+	case ProviderOpenAI:
 		return provider.NewOpenAI()
-	case strings.HasPrefix(model, "claude-"):
+	case ProviderAnthropic:
 		return provider.NewAnthropic()
-	case strings.HasPrefix(model, "gemini-"):
+	case ProviderGoogle:
 		return provider.NewGoogle()
 	default:
-		return nil, fmt.Errorf("unknown model prefix: %s (supported: gpt-*, claude-*, gemini-*)", model)
+		return nil, fmt.Errorf("unhandled provider type for model %s", model)
 	}
 }

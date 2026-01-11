@@ -4,16 +4,28 @@ CLI tool that queries multiple LLMs with the same prompt and synthesizes a conse
 
 ## Installation
 
+### From GitHub Releases (recommended)
+
+Download the latest binary for your platform from [Releases](https://github.com/johnayoung/llm-consensus/releases).
+
+### Using Go
+
 ```bash
 go install github.com/johnayoung/llm-consensus/cmd/llm-consensus@latest
 ```
 
-Or build from source:
+### Build from source
 
 ```bash
 git clone https://github.com/johnayoung/llm-consensus.git
 cd llm-consensus
 go build -o llm-consensus ./cmd/llm-consensus
+```
+
+### Verify installation
+
+```bash
+llm-consensus --version
 ```
 
 ## Configuration
@@ -32,12 +44,12 @@ export GOOGLE_API_KEY=AI...
 llm-consensus --models <model1,model2,...> [--judge <model>] [--file <path>] [--timeout <seconds>] [prompt]
 ```
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--models` | Comma-separated list of models to query (required) | - |
-| `--judge` | Model for consensus synthesis | `gpt-4o` |
-| `--file` | Read prompt from file | - |
-| `--timeout` | Per-model timeout in seconds | `30` |
+| Flag        | Description                                        | Default  |
+| ----------- | -------------------------------------------------- | -------- |
+| `--models`  | Comma-separated list of models to query (required) | -        |
+| `--judge`   | Model for consensus synthesis                      | `gpt-4o` |
+| `--file`    | Read prompt from file                              | -        |
+| `--timeout` | Per-model timeout in seconds                       | `30`     |
 
 ## Examples
 

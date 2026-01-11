@@ -13,19 +13,20 @@ import (
 )
 
 // Google Gemini Models
-// Full list: https://ai.google.dev/gemini-api/docs/models/gemini
+// Full list: https://ai.google.dev/gemini-api/docs/models
 //
-// Gemini 2.0:
-//   - gemini-2.0-flash           : Fast multimodal with agentic capabilities
-//   - gemini-2.0-flash-lite      : Cost-effective for high-volume tasks
+// Gemini 3:
+//   - gemini-3-pro               : Most intelligent, multimodal understanding, agentic
+//   - gemini-3-flash             : Most balanced, built for speed and scale
 //
-// Gemini 1.5:
-//   - gemini-1.5-pro             : Best for complex reasoning, 2M context
-//   - gemini-1.5-flash           : Fast and versatile, 1M context
-//   - gemini-1.5-flash-8b        : Smallest, fastest, high-volume tasks
+// Gemini 2.5:
+//   - gemini-2.5-pro             : Advanced thinking model, complex reasoning
+//   - gemini-2.5-flash           : Best price-performance, large scale processing
+//   - gemini-2.5-flash-lite      : Fastest flash, cost-efficient, high throughput
 //
-// Gemini 1.0:
-//   - gemini-1.0-pro             : Legacy model
+// Gemini 2.0 (Previous):
+//   - gemini-2.0-flash           : Second generation workhorse, 1M context
+//   - gemini-2.0-flash-lite      : Second generation small workhorse, 1M context
 
 // Google implements Provider for Google's Gemini API.
 type Google struct {

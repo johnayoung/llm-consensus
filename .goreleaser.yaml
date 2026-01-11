@@ -1,0 +1,74 @@
+# GoReleaser configuration for llm-consensus
+# Documentation: https://goreleaser.com
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: llm-consensus
+    main: ./cmd/llm-consensus
+    binary: llm-consensus
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+      - "Merge branch"
+
+release:
+  github:
+    owner: johnayoung
+    name: llm-consensus
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"
+
+# Homebrew tap (optional - uncomment and configure if you have a homebrew-tap repo)
+# brews:
+#   - repository:
+#       owner: johnayoung
+#       name: homebrew-tap
+#     homepage: https://github.com/johnayoung/llm-consensus
+#     description: CLI tool that queries multiple LLMs and synthesizes consensus
+#     license: MIT
+#     install: |
+#       bin.install "llm-consensus"
+#     test: |
+#       system "#{bin}/llm-consensus", "--version"
