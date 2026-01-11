@@ -13,20 +13,19 @@ import (
 )
 
 // Anthropic Claude Models
-// Full list: https://docs.anthropic.com/en/docs/about-claude/models
+// Full list: https://platform.claude.com/docs/en/about-claude/models/overview
 //
-// Claude 4 (Latest):
-//   - claude-sonnet-4-20250514    : Best balance of speed and capability
-//   - claude-opus-4-20250514      : Most capable, best for complex tasks
+// Claude 4.5 (Latest):
+//   - claude-sonnet-4-5-20250929  : Smart model for complex agents and coding
+//   - claude-haiku-4-5-20251001   : Fastest with near-frontier intelligence
+//   - claude-opus-4-5-20251101    : Maximum intelligence, premium performance
 //
-// Claude 3.5:
-//   - claude-3-5-sonnet-20241022  : Previous generation sonnet
-//   - claude-3-5-haiku-20241022   : Fast and cost-effective
-//
-// Claude 3:
-//   - claude-3-opus-20240229      : Previous flagship
-//   - claude-3-sonnet-20240229    : Balanced performance
-//   - claude-3-haiku-20240307     : Fastest, cheapest
+// Legacy (Claude 4 and earlier):
+//   - claude-opus-4-1-20250805    : Previous Opus generation
+//   - claude-sonnet-4-20250514    : Previous Sonnet generation
+//   - claude-3-7-sonnet-20250219  : Claude 3.7 Sonnet
+//   - claude-opus-4-20250514      : Claude 4 Opus
+//   - claude-3-haiku-20240307     : Fast and cost-effective
 
 // Anthropic implements Provider for Anthropic's Claude API.
 type Anthropic struct {
