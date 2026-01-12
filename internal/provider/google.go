@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -125,6 +127,81 @@ func (g *Google) Query(ctx context.Context, req Request) (Response, error) {
 	return Response{
 		Model:    req.Model,
 		Content:  geminiResp.Candidates[0].Content.Parts[0].Text,
+		Provider: "google",
+		Latency:  time.Since(start),
+	}, nil
+}
+
+// QueryStream sends a prompt to a Gemini model and streams the response.
+func (g *Google) QueryStream(ctx context.Context, req Request, callback StreamCallback) (Response, error) {
+	start := time.Now()
+
+	payload := geminiRequest{
+		Contents: []geminiContent{
+			{
+				Parts: []geminiPart{
+					{Text: req.Prompt},
+				},
+			},
+		},
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return Response{}, fmt.Errorf("marshaling request: %w", err)
+	}
+
+	// Gemini uses streamGenerateContent endpoint for streaming
+	url := fmt.Sprintf("%s/models/%s:streamGenerateContent?key=%s&alt=sse", g.baseURL, req.Model, g.apiKey)
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return Response{}, fmt.Errorf("creating request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := g.httpClient.Do(httpReq)
+	if err != nil {
+		return Response{}, fmt.Errorf("sending request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return Response{}, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var fullContent strings.Builder
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+
+		var streamResp geminiResponse
+		if err := json.Unmarshal([]byte(data), &streamResp); err != nil {
+			continue
+		}
+
+		if len(streamResp.Candidates) > 0 && len(streamResp.Candidates[0].Content.Parts) > 0 {
+			chunk := streamResp.Candidates[0].Content.Parts[0].Text
+			fullContent.WriteString(chunk)
+			if callback != nil {
+				callback(chunk)
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return Response{}, fmt.Errorf("reading stream: %w", err)
+	}
+
+	return Response{
+		Model:    req.Model,
+		Content:  fullContent.String(),
 		Provider: "google",
 		Latency:  time.Since(start),
 	}, nil

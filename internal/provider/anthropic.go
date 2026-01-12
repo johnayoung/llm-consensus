@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -126,10 +128,90 @@ func (a *Anthropic) Query(ctx context.Context, req Request) (Response, error) {
 	}, nil
 }
 
+// QueryStream sends a prompt to a Claude model and streams the response.
+func (a *Anthropic) QueryStream(ctx context.Context, req Request, callback StreamCallback) (Response, error) {
+	start := time.Now()
+
+	payload := anthropicStreamRequest{
+		Model:     req.Model,
+		MaxTokens: 4096,
+		Messages: []anthropicMessage{
+			{Role: "user", Content: req.Prompt},
+		},
+		Stream: true,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return Response{}, fmt.Errorf("marshaling request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, a.baseURL+"/messages", bytes.NewReader(body))
+	if err != nil {
+		return Response{}, fmt.Errorf("creating request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-api-key", a.apiKey)
+	httpReq.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := a.httpClient.Do(httpReq)
+	if err != nil {
+		return Response{}, fmt.Errorf("sending request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return Response{}, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var fullContent strings.Builder
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+
+		var event anthropicStreamEvent
+		if err := json.Unmarshal([]byte(data), &event); err != nil {
+			continue
+		}
+
+		if event.Type == "content_block_delta" && event.Delta.Type == "text_delta" {
+			chunk := event.Delta.Text
+			fullContent.WriteString(chunk)
+			if callback != nil {
+				callback(chunk)
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return Response{}, fmt.Errorf("reading stream: %w", err)
+	}
+
+	return Response{
+		Model:    req.Model,
+		Content:  fullContent.String(),
+		Provider: "anthropic",
+		Latency:  time.Since(start),
+	}, nil
+}
+
 type anthropicRequest struct {
 	Model     string             `json:"model"`
 	MaxTokens int                `json:"max_tokens"`
 	Messages  []anthropicMessage `json:"messages"`
+}
+
+type anthropicStreamRequest struct {
+	Model     string             `json:"model"`
+	MaxTokens int                `json:"max_tokens"`
+	Messages  []anthropicMessage `json:"messages"`
+	Stream    bool               `json:"stream"`
 }
 
 type anthropicMessage struct {
@@ -141,4 +223,12 @@ type anthropicResponse struct {
 	Content []struct {
 		Text string `json:"text"`
 	} `json:"content"`
+}
+
+type anthropicStreamEvent struct {
+	Type  string `json:"type"`
+	Delta struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	} `json:"delta,omitempty"`
 }

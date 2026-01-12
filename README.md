@@ -2,6 +2,14 @@
 
 CLI tool that queries multiple LLMs with the same prompt and synthesizes a consensus response using LLM-as-Judge.
 
+## Features
+
+- **Multi-model queries** - Query multiple LLMs in parallel
+- **Streaming responses** - Real-time progress with token counts
+- **Interactive UI** - Colored output with spinners and progress indicators
+- **Auto-save runs** - Each run saved to `data/<run-id>/` for history
+- **LLM-as-Judge** - Synthesizes consensus from multiple responses
+
 ## Installation
 
 ### From GitHub Releases (recommended)
@@ -41,60 +49,111 @@ export GOOGLE_API_KEY=AI...
 ## Usage
 
 ```bash
-llm-consensus --models <model1,model2,...> [--judge <model>] [--file <path>] [--timeout <seconds>] [prompt]
+llm-consensus --models <model1,model2,...> [options] [prompt]
 ```
 
-| Flag        | Description                                        | Default  |
-| ----------- | -------------------------------------------------- | -------- |
-| `--models`  | Comma-separated list of models to query (required) | -        |
-| `--judge`   | Model for consensus synthesis                      | `gpt-4o` |
-| `--file`    | Read prompt from file                              | -        |
-| `--timeout` | Per-model timeout in seconds                       | `30`     |
+### Flags
+
+| Flag          | Description                                        | Default                  |
+| ------------- | -------------------------------------------------- | ------------------------ |
+| `--models`    | Comma-separated list of models to query (required) | -                        |
+| `--judge`     | Model for consensus synthesis                      | `gpt-5.2-pro-2025-12-11` |
+| `--file`      | Read prompt from file                              | -                        |
+| `--output`    | Write JSON to specific file (overrides auto-save)  | -                        |
+| `--data-dir`  | Directory for auto-saved runs                      | `data`                   |
+| `--timeout`   | Per-model timeout in seconds                       | `120`                    |
+| `--json`      | Output JSON to stdout (no UI, no auto-save)        | `false`                  |
+| `--no-save`   | Disable auto-save to data directory                | `false`                  |
+| `-q, --quiet` | Suppress progress output                           | `false`                  |
+| `--version`   | Print version information                          | -                        |
 
 ## Examples
 
-Basic query:
+### Basic query
 ```bash
-llm-consensus --models gpt-4o,claude-sonnet-4-5-20250929,gemini-1.5-pro "What causes aurora borealis?"
+llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5 "What causes aurora borealis?"
 ```
 
-Custom judge model:
+### Custom judge model
 ```bash
-llm-consensus --models gpt-4o,claude-sonnet-4-5-20250929 --judge gemini-1.5-pro "Explain quicksort"
+llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5 --judge gemini-3-pro-preview "Explain quicksort"
 ```
 
-From file:
+### From file
 ```bash
-llm-consensus --models gpt-4o,claude-sonnet-4-5-20250929 --file prompt.txt
+llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5 --file prompt.md
 ```
 
-From stdin:
+### From stdin
 ```bash
-echo "What is 2+2?" | llm-consensus --models gpt-4o,claude-sonnet-4-5-20250929
+echo "What is 2+2?" | llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5
 ```
 
 ```bash
-cat complex_prompt.md | llm-consensus --models gpt-4o,claude-sonnet-4-5-20250929
+cat complex_prompt.md | llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5
 ```
 
-Parse JSON output with jq:
+### JSON output for scripting
 ```bash
-llm-consensus --models gpt-4o,claude-sonnet-4-5-20250929 "What is the capital of France?" | jq -r '.consensus'
+llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5 --json "What is the capital of France?" | jq -r '.consensus'
 ```
+
+### Save to specific file
+```bash
+llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5 --output result.json "Explain Go interfaces"
+```
+
+### Disable auto-save
+```bash
+llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5 --no-save "Quick question"
+```
+
+## Auto-Save
+
+By default, each run is saved to `data/<run-id>/` containing:
+
+```
+data/20260112-143052-a1b2c3/
+├── result.json    # Full JSON output with all responses
+├── prompt.txt     # Original prompt
+└── consensus.md   # Just the consensus (easy to read/share)
+```
+
+Run IDs use the format `YYYYMMDD-HHMMSS-<random>` for easy sorting and uniqueness.
+
+Use `--no-save` to disable, `--data-dir` to change the directory, or `--output` to specify an exact file.
+
+## Interactive UI
+
+When running in a terminal, you'll see real-time progress:
+
+```
+╭─ LLM Consensus ─╮
+│ Prompt: What causes aurora borealis?
+╰─────────────────╯
+
+▸ Querying models...
+⚡ Querying 3 models (2.5s)
+  ✓ gpt-5.2-2025-12-11       done ~450 tokens in 1.8s
+  ⠙ claude-sonnet-4-5        streaming ~320 tokens 1.5s
+  ✓ gemini-3-pro-preview     done ~380 tokens in 2.1s
+```
+
+The UI auto-detects terminal vs pipe and adjusts output accordingly.
 
 ## Output
 
-JSON output includes:
+JSON output structure:
 
 ```json
 {
   "prompt": "What is 2+2?",
   "responses": [
-    {"model": "gpt-4o", "provider": "openai", "content": "4", "latency_ms": 1234},
-    {"model": "claude-sonnet-4-5-20250929", "provider": "anthropic", "content": "4", "latency_ms": 1456}
+    {"model": "gpt-5.2-2025-12-11", "provider": "openai", "content": "4", "latency_ms": 1234},
+    {"model": "claude-sonnet-4-5", "provider": "anthropic", "content": "4", "latency_ms": 1456}
   ],
   "consensus": "The answer is 4.",
-  "judge": "gpt-4o",
+  "judge": "gpt-5.2-pro-2025-12-11",
   "warnings": [],
   "failed_models": []
 }
@@ -103,23 +162,21 @@ JSON output includes:
 ## Supported Models
 
 ### OpenAI
-https://platform.openai.com/docs/models
+Uses the [Responses API](https://platform.openai.com/docs/api-reference/responses) for better reasoning performance.
 
-- `gpt-4o` - Most capable, multimodal
-- `gpt-4o-mini` - Fast, cost-effective
-- `o1`, `o1-mini`, `o3-mini` - Reasoning models
-- `gpt-4-turbo`, `gpt-3.5-turbo` - Legacy
+- `gpt-5.2-2025-12-11` - Best for coding and agentic tasks
+- `gpt-5.2-pro-2025-12-11` - Smarter, more precise responses (default judge)
 
 ### Anthropic
-https://platform.claude.com/docs/en/about-claude/models/overview
 
-- `claude-sonnet-4-5-20250929` - Smart model for complex agents and coding
-- `claude-haiku-4-5-20251001` - Fastest with near-frontier intelligence
-- `claude-opus-4-5-20251101` - Maximum intelligence, premium performance
-- `claude-opus-4-1-20250805`, `claude-sonnet-4-5-20250929`, `claude-3-haiku-20240307` - Legacy
+- `claude-sonnet-4-5` - Smart model for complex agents and coding
+- `claude-haiku-4-5` - Fastest with near-frontier intelligence
+- `claude-opus-4-5` - Maximum intelligence, premium performance
 
 ### Google
-https://ai.google.dev/gemini-api/docs/models/gemini
 
-- `gemini-2.0-flash`, `gemini-2.0-flash-lite` - Gemini 2.0
-- `gemini-1.5-pro`, `gemini-1.5-flash`, `gemini-1.5-flash-8b` - Gemini 1.5
+- `gemini-3-pro-preview` - Most intelligent, multimodal understanding
+
+## License
+
+MIT
