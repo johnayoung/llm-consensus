@@ -27,8 +27,8 @@ var (
 )
 
 const (
-	defaultJudge   = "gpt-5.2-2025-12-11"
-	defaultTimeout = 30 * time.Second
+	defaultJudge   = "gpt-5.2-pro"
+	defaultTimeout = 120 * time.Second
 )
 
 // ProviderType identifies which LLM provider to use.
@@ -161,7 +161,7 @@ func parseFlags() (*config, error) {
 	flag.StringVar(&judge, "judge", defaultJudge, "Model to use for consensus synthesis")
 	flag.StringVar(&file, "file", "", "Read prompt from file")
 	flag.StringVar(&outputPath, "output", "", "Write JSON output to file (default: stdout)")
-	flag.IntVar(&timeout, "timeout", 30, "Per-model timeout in seconds")
+	flag.IntVar(&timeout, "timeout", 120, "Per-model timeout in seconds")
 	flag.BoolVar(&showVersion, "version", false, "Print version information and exit")
 	flag.Parse()
 
