@@ -9,6 +9,7 @@ CLI tool that queries multiple LLMs with the same prompt and synthesizes a conse
 - **Interactive UI** - Colored output with spinners and progress indicators
 - **Auto-save runs** - Each run saved to `data/<run-id>/` for history
 - **LLM-as-Judge** - Synthesizes consensus from multiple responses
+- **Minimal dependencies** - Only uses `golang.org/x/sync`
 
 ## Installation
 
@@ -28,12 +29,6 @@ go install github.com/johnayoung/llm-consensus/cmd/llm-consensus@latest
 git clone https://github.com/johnayoung/llm-consensus.git
 cd llm-consensus
 go build -o llm-consensus ./cmd/llm-consensus
-```
-
-### Verify installation
-
-```bash
-llm-consensus --version
 ```
 
 ## Configuration
@@ -69,88 +64,49 @@ llm-consensus --models <model1,model2,...> [options] [prompt]
 
 ## Examples
 
-### Basic query
 ```bash
+# Basic query
 llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5 "What causes aurora borealis?"
-```
 
-### Custom judge model
-```bash
+# Custom judge model
 llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5 --judge gemini-3-pro-preview "Explain quicksort"
-```
 
-### From file
-```bash
+# From file
 llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5 --file prompt.md
-```
 
-### From stdin
-```bash
-echo "What is 2+2?" | llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5
-```
-
-```bash
+# From stdin
 cat complex_prompt.md | llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5
-```
 
-### JSON output for scripting
-```bash
+# JSON output for scripting
 llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5 --json "What is the capital of France?" | jq -r '.consensus'
 ```
 
-### Save to specific file
-```bash
-llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5 --output result.json "Explain Go interfaces"
-```
+## Supported Models
 
-### Disable auto-save
-```bash
-llm-consensus --models gpt-5.2-2025-12-11,claude-sonnet-4-5 --no-save "Quick question"
-```
-
-## Auto-Save
-
-By default, each run is saved to `data/<run-id>/` containing:
-
-```
-data/20260112-143052-a1b2c3/
-├── result.json    # Full JSON output with all responses
-├── prompt.txt     # Original prompt
-└── consensus.md   # Just the consensus (easy to read/share)
-```
-
-Run IDs use the format `YYYYMMDD-HHMMSS-<random>` for easy sorting and uniqueness.
-
-Use `--no-save` to disable, `--data-dir` to change the directory, or `--output` to specify an exact file.
-
-## Interactive UI
-
-When running in a terminal, you'll see real-time progress:
-
-```
-╭─ LLM Consensus ─╮
-│ Prompt: What causes aurora borealis?
-╰─────────────────╯
-
-▸ Querying models...
-⚡ Querying 3 models (2.5s)
-  ✓ gpt-5.2-2025-12-11       done ~450 tokens in 1.8s
-  ⠙ claude-sonnet-4-5        streaming ~320 tokens 1.5s
-  ✓ gemini-3-pro-preview     done ~380 tokens in 2.1s
-```
-
-The UI auto-detects terminal vs pipe and adjusts output accordingly.
+| Provider  | Models                                                                  |
+| --------- | ----------------------------------------------------------------------- |
+| OpenAI    | `gpt-5.2-2025-12-11`, `gpt-5.2-pro-2025-12-11` (default judge)          |
+| Anthropic | `claude-sonnet-4-5`, `claude-haiku-4-5`, `claude-opus-4-5`              |
+| Google    | `gemini-3-pro-preview`                                                  |
 
 ## Output
 
-JSON output structure:
+Auto-saved runs are stored in `data/<run-id>/`:
+
+```
+data/20260112-143052-a1b2c3/
+├── result.json    # Full JSON output
+├── prompt.txt     # Original prompt
+└── consensus.md   # Consensus answer
+```
+
+JSON structure:
 
 ```json
 {
   "prompt": "What is 2+2?",
   "responses": [
-    {"model": "gpt-5.2-2025-12-11", "provider": "openai", "content": "4", "latency_ms": 1234},
-    {"model": "claude-sonnet-4-5", "provider": "anthropic", "content": "4", "latency_ms": 1456}
+    {"model": "gpt-5.2-2025-12-11", "provider": "openai", "content": "4", "latency_ms": 1234}
   ],
   "consensus": "The answer is 4.",
   "judge": "gpt-5.2-pro-2025-12-11",
@@ -159,23 +115,21 @@ JSON output structure:
 }
 ```
 
-## Supported Models
+## Project Structure
 
-### OpenAI
-Uses the [Responses API](https://platform.openai.com/docs/api-reference/responses) for better reasoning performance.
-
-- `gpt-5.2-2025-12-11` - Best for coding and agentic tasks
-- `gpt-5.2-pro-2025-12-11` - Smarter, more precise responses (default judge)
-
-### Anthropic
-
-- `claude-sonnet-4-5` - Smart model for complex agents and coding
-- `claude-haiku-4-5` - Fastest with near-frontier intelligence
-- `claude-opus-4-5` - Maximum intelligence, premium performance
-
-### Google
-
-- `gemini-3-pro-preview` - Most intelligent, multimodal understanding
+```
+llm-consensus/
+├── cmd/
+│   ├── llm-consensus/           # Main CLI application
+│   └── model-registry-sync/     # Utility to sync available models
+├── internal/
+│   ├── consensus/               # LLM-as-Judge synthesis
+│   ├── provider/                # LLM provider implementations (OpenAI, Anthropic, Google)
+│   ├── runner/                  # Parallel query orchestration
+│   ├── output/                  # JSON output formatting
+│   └── ui/                      # Terminal UI and progress display
+└── data/                        # Auto-saved run history (gitignored)
+```
 
 ## License
 
